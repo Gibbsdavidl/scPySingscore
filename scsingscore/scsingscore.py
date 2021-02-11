@@ -31,10 +31,13 @@ def read_gene_sets(filepath):
 
 
 def add_noise(df, n, noise_low, noise_high):
-    df2 = df.copy()
-    for i in range(0,n):
-        df2['trial'+str(i)] = df * (1 + numpy.random.uniform(noise_low,noise_high,(df.shape)))
-    return(df2)
+    #df2 = df.copy()
+    # draw all random noise in one call
+    dfs = pandas.Series(df.gene_counts)
+    randmat = pandas.DataFrame(numpy.random.uniform(noise_low, noise_high, (dfs.size, n) ) )
+    randmat.index = df.index
+    randmat = randmat.apply(lambda x: x + dfs)
+    return(randmat)
 
 
 def get_conn_dist(q, celli, nn):
@@ -49,6 +52,12 @@ def get_conn_dist(q, celli, nn):
     df['prob'] = [x/sumconn for x in df['conn']]
     return(df)
 
+
+def to_dense_transpose_list(gene_counts):
+    gene_mat = gene_counts.todense().transpose().sum(axis=1)
+    #gene_mat = gene_mat.transpose() #.tolist() very slow
+    gdx = numpy.argwhere(gene_mat == 0)
+    return( (gene_mat,  [x[0] for x in gdx] ) )
 
 def one_score(
     adata, 
@@ -82,21 +91,22 @@ def one_score(
     else:
         # one cell
         gene_counts = adata.X[celli,:]
-        
-    gene_mat = gene_counts.todense()
-    gene_mat = gene_mat.transpose().tolist()
-    
-    # get index of genes with some counts across cells
-    gdx = [i for i,j in enumerate(gene_mat) if sum(j) > 0.0]  ## could filter here
 
+    # slow part -- yes fixed.
+    (gene_mat, gdx) = to_dense_transpose_list(gene_counts)
+
+    # get index of genes with some counts across cells
+    #gdx = [i for i,j in enumerate(gene_mat) if sum(j) > 0.0]  ## could filter here
     # sum gene counts across cells
-    gene_mat_sum = [sum(x) for x in gene_mat]
-    df = pandas.DataFrame(gene_mat_sum, index=adata.var.index)
+    #gene_mat_sum = [sum(x) for x in gene_mat]
+
+    df = pandas.DataFrame(gene_mat, index=adata.var.index)
     df = df.iloc[gdx,:]
-        
+    df.columns = ['gene_counts']
+
     if mode == 'average' and noise_trials > 0:
         # add some noise to gene counts.. create a n numbers of examples
-        df_noise = add_noise(df, noise_trials, 0.01, 0.99)
+        df_noise = add_noise(df, noise_trials, 0.01, 0.99) ## slow part
         # score the neighborhoods
         si = score(up_gene=gene_set, sample=df_noise, norm_method='standard', full_data=False)  # standard workin gbetter here than theoretical
     else:
