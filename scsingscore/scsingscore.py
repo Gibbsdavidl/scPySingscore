@@ -55,19 +55,19 @@ def get_conn_dist(q, celli, nn):
 
 def to_dense_transpose_list(gene_counts):
     gene_mat = gene_counts.todense().transpose().sum(axis=1)
-    #gene_mat = gene_mat.transpose() #.tolist() very slow
     gdx = numpy.argwhere(gene_mat == 0)
     return( (gene_mat,  [x[0] for x in gdx] ) )
 
+
 def one_score(
-    adata, 
-    celli, 
-    noise_trials, 
-    num_neighbors, 
-    samp_neighbors, 
-    gene_set, 
-    mode='average', 
-    compute_neighbors=True):
+    adata,  # anndata containing single cell rna-seq data
+    celli,   # cell index, integer
+    noise_trials,  # number of noisy samples to create, integer
+    num_neighbors,  # number of neighbors to consider
+    samp_neighbors,   # number of neighbors to sample
+    gene_set,  # the gene set of interest
+    mode='average',  # average or theoretical normalization of scores
+    compute_neighbors=False):  # whether to compute the neighborhood.  very slow.
 
     # mode 'average' averaged the noise trials
     # mode 'nonoise' returns the non-noised score 
@@ -75,8 +75,6 @@ def one_score(
     if num_neighbors == 0 and samp_neighbors > 0:
         print('fix parameters')
         return(False)
-    
-    numcells = adata.obs.shape[0]
     
     if compute_neighbors == True and num_neighbors > 0:
         sc.pp.neighbors(adata, n_neighbors = num_neighbors)
@@ -95,24 +93,20 @@ def one_score(
     # slow part -- yes fixed.
     (gene_mat, gdx) = to_dense_transpose_list(gene_counts)
 
-    # get index of genes with some counts across cells
-    #gdx = [i for i,j in enumerate(gene_mat) if sum(j) > 0.0]  ## could filter here
-    # sum gene counts across cells
-    #gene_mat_sum = [sum(x) for x in gene_mat]
-
+    # then we subset it to only the genes with counts
     df = pandas.DataFrame(gene_mat, index=adata.var.index)
     df = df.iloc[gdx,:]
     df.columns = ['gene_counts']
 
     if mode == 'average' and noise_trials > 0:
         # add some noise to gene counts.. create a n numbers of examples
-        df_noise = add_noise(df, noise_trials, 0.01, 0.99) ## slow part
+        df_noise = add_noise(df, noise_trials, 0.01, 0.99) ## slow part .. fixed
         # score the neighborhoods
         si = score(up_gene=gene_set, sample=df_noise, norm_method='standard', full_data=False)  # standard workin gbetter here than theoretical
     else:
         si = score(up_gene=gene_set, sample=df, norm_method='standard', full_data=False) 
-        
-    return(si)
+
+    return(si.total_score.mean())
 
 
 
