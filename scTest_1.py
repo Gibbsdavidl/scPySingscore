@@ -26,13 +26,14 @@ num_neighbors = 33
 samp_neighbors = 27
 mode = 'average'
 
-# 33% of time was on running neighbors
-sc.pp.neighbors(q, n_neighbors = num_neighbors)
-
-for celli in range(1,99):
-
-    onescore = si.one_score(q, celli, 
-        noise_trials, num_neighbors, samp_neighbors, gene_set, 
-        mode, False)
+# save so much time here
+sc.pp.neighbors(q, n_neighbors=num_neighbors)
 
 
+#for celli in range(1,19):
+
+onescore = si.sc_score_one(q, celli,
+    noise_trials, num_neighbors, samp_neighbors, gene_set,
+    mode, False)
+
+print(onescore)

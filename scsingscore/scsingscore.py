@@ -59,7 +59,7 @@ def to_dense_transpose_list(gene_counts):
     return( (gene_mat,  [x[0] for x in gdx] ) )
 
 
-def one_score(
+def sc_score_one(
     adata,  # anndata containing single cell rna-seq data
     celli,   # cell index, integer
     noise_trials,  # number of noisy samples to create, integer
@@ -82,7 +82,18 @@ def one_score(
     if num_neighbors > 0:
         # first we get the neighborhood cells
         cdf = get_conn_dist(adata, celli, num_neighbors)
+        # ZED out the cells that don't have proper annotation.
+        # REDUCE sample size to number cells possible after filter
+        # but give user warning.
         # then we sample a set of cells from them
+        if len(cdf) == 0:
+            print("warning: cell " + str(celli) + " has " + str(len(cdf)) + " neighbors")
+            print("    returning zed")
+            return(0.0)
+        if len(cdf) < samp_neighbors:
+            print("warning: cell " + str(celli) + " has " + str(len(cdf)) + " neighbors")
+            print("    setting to sample " + str(len(cdf)) + " neighbors")
+            samp_neighbors = len(cdf)
         csamp = numpy.random.choice(a=cdf['idx'], size=samp_neighbors, replace=False, p=cdf['prob'])
         # gene counts for scoring needs to have genes on rows.
         gene_counts = adata.X[csamp,:]
@@ -97,6 +108,9 @@ def one_score(
     df = pandas.DataFrame(gene_mat, index=adata.var.index)
     df = df.iloc[gdx,:]
     df.columns = ['gene_counts']
+
+    # FROM HERE: parallel computing of scores across gene sets.
+    # or parallelize on each column of dataframe
 
     if mode == 'average' and noise_trials > 0:
         # add some noise to gene counts.. create a n numbers of examples
