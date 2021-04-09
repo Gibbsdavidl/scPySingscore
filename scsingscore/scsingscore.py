@@ -55,7 +55,7 @@ def get_conn_dist(q, celli, nn):
 
 def to_dense_transpose_list(gene_counts):
     gene_mat = gene_counts.todense().transpose().sum(axis=1)
-    gdx = numpy.argwhere(gene_mat == 0)
+    gdx = numpy.argwhere(gene_mat > 0)
     return( (gene_mat,  [x[0] for x in gdx] ) )
 
 
@@ -123,6 +123,79 @@ def sc_score_one(
     return(si.total_score.mean())
 
 
+def sc_score_list(
+        adata,  # anndata containing single cell rna-seq data
+        celli,  # cell index, integer
+        noise_trials,  # number of noisy samples to create, integer
+        num_neighbors,  # number of neighbors to consider
+        samp_neighbors,  # number of neighbors to sample
+        gene_sets,  # a list of gene sets
+        mode='average',  # average or theoretical normalization of scores
+        compute_neighbors=False):  # whether to compute the neighborhood.  very slow.
+
+    # mode 'average' averaged the noise trials
+    # mode 'nonoise' returns the non-noised score
+
+    if num_neighbors == 0 and samp_neighbors > 0:
+        print('fix parameters')
+        return (False)
+
+    if compute_neighbors == True and num_neighbors > 0:
+        sc.pp.neighbors(adata, n_neighbors=num_neighbors)
+
+    if len(gene_sets) < 2:# doesn't really work
+        print('function requires a list of gene sets')
+        return( False )
+
+    if num_neighbors > 0:
+        # first we get the neighborhood cells
+        cdf = get_conn_dist(adata, celli, num_neighbors)
+        # ZED out the cells that don't have proper annotation.
+        # REDUCE sample size to number cells possible after filter
+        # but give user warning.
+        # then we sample a set of cells from them
+        if len(cdf) == 0:
+            print("warning: cell " + str(celli) + " has " + str(len(cdf)) + " neighbors")
+            print("    returning zed")
+            return (0.0)
+        if len(cdf) < samp_neighbors:
+            print("warning: cell " + str(celli) + " has " + str(len(cdf)) + " neighbors")
+            print("    setting to sample " + str(len(cdf)) + " neighbors")
+            samp_neighbors = len(cdf)
+        csamp = numpy.random.choice(a=cdf['idx'], size=samp_neighbors, replace=False, p=cdf['prob'])
+        # gene counts for scoring needs to have genes on rows.
+        gene_counts = adata.X[csamp, :]
+    else:
+        # one cell
+        gene_counts = adata.X[celli, :]
+
+    # slow part -- yes fixed.
+    (gene_mat, gdx) = to_dense_transpose_list(gene_counts)
+
+    # then we subset it to only the genes with counts
+    df = pandas.DataFrame(gene_mat, index=adata.var.index)
+    df = df.iloc[gdx, :]
+    df.columns = ['gene_counts']
+
+    # FROM HERE: parallel computing of scores across gene sets.
+    # or parallelize on each column of dataframe
+
+    res0 = [] # list of gene set scores
+
+    for gene_set in gene_sets:
+
+        if mode == 'average' and noise_trials > 0:
+            # add some noise to gene counts.. create a n numbers of examples
+            df_noise = add_noise(df, noise_trials, 0.01, 0.99)  ## slow part .. fixed
+            # score the neighborhoods
+            si = score(up_gene=gene_set, sample=df_noise, norm_method='standard',
+                       full_data=False)  # standard workin gbetter here than theoretical
+        else:
+            si = score(up_gene=gene_set, sample=df, norm_method='standard', full_data=False)
+
+        res0.append(si.total_score.median())
+
+    return(res0)
 
 
 #############################################################
