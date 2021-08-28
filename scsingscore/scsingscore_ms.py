@@ -5,6 +5,9 @@ import numpy as np
 from scipy import sparse
 import pandas as pd
 NN_DISTANCE_KEY = 'distances'
+import scsingscore.scsingscore  as si
+import tqdm
+
 
 # TODO test: should always sum to 1
 # multiplying should leave a "one-vector" still sum to one
@@ -12,8 +15,6 @@ NN_DISTANCE_KEY = 'distances'
 
 def get_smoothing_matrix(adata, mode):
     if mode == 'adjacency':
-        # TODO: this does not contain the cell itslef?!
-        # TODO: make sure the neigbhours of cell i are in A[i] (not A[:,i])
         A = (adata.obsp[NN_DISTANCE_KEY] > 0).astype(int)
 
         # add the diagnoal, ie. the datapoint itself should be represented in the smoothing!
@@ -54,7 +55,8 @@ def random_mask_a_nn_matrix(X, nn_to_keep):
         newcols.extend(col_ix[rand_ix])
         newvals.extend(vals[rand_ix])
 
-    return sparse.csr_matrix((newvals, (newrows, newcols)))  # TODO choose matrix format as X
+    # TODO choose matrix format as X
+    return sparse.csr_matrix((newvals, (newrows, newcols)))
 
 
 def nn_smoothing(X, adata, mode, samp_neighbors):
@@ -85,7 +87,7 @@ def sc_score(
         ):
 
     # NOTE: this is cells x genes
-    gene_mat = nn_smoothing(adata.X, adata, 'connectivity', samp_neighbors)
+    full_matrix = nn_smoothing(adata.X, adata, 'connectivity', samp_neighbors)
 
     """
     since we're doing all cells at the same time now,
@@ -99,3 +101,24 @@ def sc_score(
     # gdx = df.sum(1) == 0
     # df = df.iloc[gdx,:]
     # df.columns = ['gene_counts']
+    scores_across_cells = []
+    for cell_ix in tqdm.trange(adata.shape[0]):
+        gene_mat = full_matrix[cell_ix]
+        # then we subset it to only the genes with counts
+        _, gdx, _ = sparse.find(gene_mat)
+        df = pd.DataFrame(gene_mat[:, gdx].A.flatten(), index=adata.var.index[gdx])
+        df.columns = ['gene_counts']
+
+        # FROM HERE: parallel computing of scores across gene sets.
+        # or parallelize on each column of dataframe
+
+        if mode == 'average' and noise_trials > 0:
+            # add some noise to gene counts.. create a n numbers of examples
+            df_noise = si.add_noise(df, noise_trials, 0.01, 0.99) ## slow part .. fixed
+        else:
+            df_noise = df
+        # score the neighborhoods
+        s = si.score(up_gene=gene_set, sample=df_noise, norm_method='standard', full_data=False) # standard workin gbetter here than theoretical
+
+        avg_score = s.mean()
+        scores_across_cells.append(avg_score)

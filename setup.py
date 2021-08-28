@@ -13,6 +13,6 @@ setup(name='scsingscore',
       license='MIT',
       packages=['scsingscore', 'scsingscore.test'],
       install_requires=[
-          'pandas','numpy','matplotlib','seaborn','scipy', 'statsmodels', 'scanpy'
+          'pandas', 'numpy', 'matplotlib', 'seaborn', 'scipy', 'statsmodels', 'scanpy', 'tqdm'
       ],
       zip_safe=False)
