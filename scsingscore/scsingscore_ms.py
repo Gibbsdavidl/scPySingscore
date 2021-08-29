@@ -63,3 +63,66 @@ def _score_one_by_one(gene_set, smoothed_adata, noise_trials, mode='average', ):
         scores_across_cells.append(avg_score)
 
     return np.array(scores_across_cells).flatten()
+
+
+def _ms_sing(geneset: list, x: pd.Series, norm_method: str) -> dict:
+    sig_len_up = len(geneset)
+    assert isinstance(x, pd.Series)
+    up_sort = x.rank(method='min', ascending=True)
+    su = []
+
+    # for every gene in the list gene get the value at that
+    # index/rowname (the gene) and the sample that is equal to i
+    if True:
+        for j in geneset:
+            if j in up_sort.index:
+                su.append(up_sort[j])
+            else:
+                sig_len_up = sig_len_up - 1
+    else:
+        # dict acces would be faster, but dict generation takes too loading
+        # damn
+        d = up_sort.to_dict()
+        for g in geneset:
+            if g in d:
+                su.append(d[g])
+            else:
+                sig_len_up = sig_len_up - 1
+
+    # normalise the score for the number of genes in the signature
+    score_up = np.mean(su)
+    norm_up = si.normalisation(norm_method=norm_method,
+                               library_len=len(x.index),
+                               score_list=su,
+                               score=score_up,
+                               sig_len=sig_len_up)
+    norm_up = norm_up - 0.5
+    mad_up = statsmodels.robust.scale.mad(su)
+    total_score = norm_up
+    return dict(total_score=total_score, mad_up=mad_up)
+
+
+def _score_all_at_once(gene_set, smoothed_adata, noise_trials, mode='average', ):
+    """
+    not really, but at least call `si.score` only once
+    """
+    results = []
+    for cell_ix in tqdm.trange(smoothed_adata.shape[0]):
+        gene_mat = smoothed_adata.X[cell_ix]
+        # then we subset it to only the genes with counts
+        _, gdx, _ = sparse.find(gene_mat)
+        # TODO we could do a dict instead of the df, that would be faster in _mssing too
+        df = pd.DataFrame(gene_mat[:, gdx].A.flatten(), index=smoothed_adata.var.index[gdx])
+        df.columns = ['gene_counts']
+
+        if mode == 'average' and noise_trials > 0:
+            # add some noise to gene counts.. create a n numbers of examples
+            raise ValueError('not implemented')
+            df_noise = si.add_noise(df, noise_trials, 0.01, 0.99) ## slow part .. fixed
+        else:
+            df_noise = df
+
+        s = _ms_sing(gene_set, df_noise['gene_counts'], norm_method='standard')
+        s['CB'] = smoothed_adata.obs.index[cell_ix]
+        results.append(s)
+    return results
