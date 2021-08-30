@@ -10,7 +10,7 @@ NN_CONN_KEY = 'connectivities'
 # multiplying should leave a "one-vector" still sum to one
 
 
-def get_smoothing_matrix(adata, mode):
+def get_smoothing_matrix(adata, mode, add_diag):
     """
     using the nearest neighbor graph in adata.obsp, calculate the smoothing
     matrix S such that S @ X smoothes the signal X over neighbors
@@ -22,7 +22,8 @@ def get_smoothing_matrix(adata, mode):
         # add the diagnoal, ie. the datapoint itself should be represented
         # in the smoothing!
         assert np.all(A.diagonal() == 0), "diagonal of distance matrix not 0!!"
-        A = A + sparse.diags(np.ones(A.shape[0]))
+        if add_diag:
+            A = A + sparse.diags(np.ones(A.shape[0]))
 
         # normalize to sum=1 per  row
         row_scaler = 1 / A.sum(axis=1).A.flatten()
@@ -37,7 +38,8 @@ def get_smoothing_matrix(adata, mode):
         # add the diagnoal, ie. the datapoint itself should be represented
         # in the smoothing! Note that the max connectivity == 1
         assert np.all(A.diagonal() == 0), "diagonal of connectivity matrix not 0!!"
-        A = A + sparse.diags(np.ones(A.shape[0]))
+        if add_diag:
+            A = A + sparse.diags(np.ones(A.shape[0]))
         # normalize to sum=1 per  row
         row_scaler = 1 / A.sum(axis=1).A.flatten()
         normA = sparse.diags(row_scaler) @ A
@@ -71,7 +73,7 @@ def random_mask_a_nn_matrix(X, nn_to_keep):
     return sparse.csr_matrix((newvals, (newrows, newcols)))
 
 
-def nn_smoothing(X, adata, mode, samp_neighbors):
+def nn_smoothing(X, adata, mode, samp_neighbors, add_diag=True):
     """
     :param X: data to smooth. (cell x feature) matrix
     :param adata: sc.AnnData, containing the neghbourhood graph
@@ -79,7 +81,7 @@ def nn_smoothing(X, adata, mode, samp_neighbors):
     """
     assert X.shape[0] == adata.shape[0], "cell number mismatch"
     logging.info("creating smoothing matrix")
-    smoothing_mat = get_smoothing_matrix(adata, mode)
+    smoothing_mat = get_smoothing_matrix(adata, mode, add_diag)
 
     if samp_neighbors > 0:
         # randomly set some edges/neighbours to zero
