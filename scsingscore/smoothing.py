@@ -21,22 +21,26 @@ def get_smoothing_matrix(adata, mode):
 
         # add the diagnoal, ie. the datapoint itself should be represented
         # in the smoothing!
+        assert np.all(A.diagonal() == 0), "diagonal of distance matrix not 0!!"
         A = A + sparse.diags(np.ones(A.shape[0]))
 
         # normalize to sum=1 per  row
         row_scaler = 1 / A.sum(axis=1).A.flatten()
-        normA = A @ sparse.diags(row_scaler)
+
+        # multiplying with a diag matrix d on the left multiplys each row i by d_i
+        normA = sparse.diags(row_scaler) @ A
         return normA
 
     # actually works exactly the same; could just switch out the obsp key
     elif mode == 'connectivity':
-        A = (adata.obsp[NN_CONN_KEY] > 0).astype(int)
+        A = adata.obsp[NN_CONN_KEY]
         # add the diagnoal, ie. the datapoint itself should be represented
         # in the smoothing! Note that the max connectivity == 1
+        assert np.all(A.diagonal() == 0), "diagonal of connectivity matrix not 0!!"
         A = A + sparse.diags(np.ones(A.shape[0]))
         # normalize to sum=1 per  row
         row_scaler = 1 / A.sum(axis=1).A.flatten()
-        normA = A @ sparse.diags(row_scaler)
+        normA = sparse.diags(row_scaler) @ A
         return normA
     else:
         raise ValueError(f'unknown mode {mode}')

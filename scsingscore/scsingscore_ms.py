@@ -7,7 +7,7 @@ import pandas as pd
 import scsingscore.scsingscore as si
 import tqdm
 import statsmodels.robust.scale
-import scanpy as sc
+from anndata import AnnData
 from scsingscore.smoothing import nn_smoothing
 
 
@@ -22,7 +22,7 @@ def sc_score(
     # NOTE: this is cells x genes
     smoothed_matrix = nn_smoothing(adata.X, adata, 'connectivity', samp_neighbors)
     # for easier handling with gene names
-    smoothed_adata = sc.AnnData(smoothed_matrix, obs=adata.obs, var=adata.var)
+    smoothed_adata = AnnData(smoothed_matrix, obs=adata.obs, var=adata.var)
     """
     since we're doing all cells at the same time now,
     the following gets probelmatic (the df kills the sparsity)
