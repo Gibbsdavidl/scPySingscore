@@ -12,12 +12,29 @@ from scsingscore.smoothing import nn_smoothing
 
 
 def sc_score(
-        adata,  # anndata containing single cell rna-seq data
-        noise_trials,  # number of noisy samples to create, integer
-        samp_neighbors,   # number of neighbors to sample
-        gene_set,  # the gene set of interest
-        mode='average',  # average or theoretical normalization of scores
+        adata,
+        noise_trials,
+        samp_neighbors,
+        gene_set,
+        mode='average',
         ):
+
+    """
+    gene set scoring with nearest neighbor smoothing of the expression matrix
+
+    Improves upon the usual scsing scoring by:
+    - smoothing the data matrix
+        - adding noise to the nearest neighbor smoothing via `samp_neighbors`
+    - adding noise to the expression data itself (via noise_trials)
+
+    :param adata: anndata.AnnData containing the cells to be scored
+    :param noise_trials: number of noisy samples to create, integer
+    :param samp_neighbors: number of neighbors to sample
+    :param gene_set: the gene set of interest
+    :param mode: average or theoretical normalization of scores
+
+    :returns: np.array of scores, one per cell in adata
+    """
 
     # NOTE: this is cells x genes
     smoothed_matrix = nn_smoothing(adata.X, adata, 'connectivity', samp_neighbors)
@@ -66,6 +83,15 @@ def _score_one_by_one(gene_set, smoothed_adata, noise_trials, mode='average', ):
 
 
 def _ms_sing(geneset: list, x: pd.Series, norm_method: str) -> dict:
+    """
+    bare bones version of scsing scoring. Their function (see scsingscore.py)
+    does a ton of stuff, here's the essentials
+
+    :param genest: Geneset to score against
+    :param x: pd.Series with the gene expression of a single sample. One gene per row
+    :param norm_method: how to normalize the scores
+    """
+
     sig_len_up = len(geneset)
     assert isinstance(x, pd.Series)
     up_sort = x.rank(method='min', ascending=True)

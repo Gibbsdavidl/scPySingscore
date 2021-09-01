@@ -14,6 +14,13 @@ def get_smoothing_matrix(adata, mode, add_diag):
     """
     using the nearest neighbor graph in adata.obsp, calculate the smoothing
     matrix S such that S @ X smoothes the signal X over neighbors
+
+    :param adata: anndata.AnnData gene expression matrix to smooth
+    :param mode: `adjacency` or `connectivity`, which representation of the neighborhood graph to use.
+        `adjacency` weights all neighbors equally, `connectivity` weights close neighbors more
+    :param add_diag: should the datapoint itself be consider in the smoothing. This should ==True in almost all cases!
+
+    :return: scipy.sparse sparse matrix with the smoothed expression
     """
 
     if mode == 'adjacency':
@@ -54,6 +61,11 @@ def random_mask_a_nn_matrix(X, nn_to_keep):
     subsample the neighours (setting some entries per row to 0)
 
     this is pretty slow, maybe there's a better way...
+
+    :param X: nearest neighbor matrix (sparse)
+    :nn_to_keep: out of the N nearest neighbors how many to keep (the others will be set to zero)
+
+    :return: sparse.csr_matrix with randomly subsampled nearest neighbors
     """
     # TODO if X is in csr format, we can quickly subsample!
     # just set some elements of data[intptr[row]:intptr[row+1]] to zero
@@ -75,9 +87,15 @@ def random_mask_a_nn_matrix(X, nn_to_keep):
 
 def nn_smoothing(X, adata, mode, samp_neighbors, add_diag=True):
     """
+    smooth the expression matrix X (cells x genes) using the neighborhood
+    graph stored in adata.
+
     :param X: data to smooth. (cell x feature) matrix
-    :param adata: sc.AnnData, containing the neghbourhood graph
+    :param adata: sc.AnnData, containing the neighborhood graph
     :param samp_neighbors: consider all neighbours or a subsample of size samp_neighbors
+    :param add_diag: consider the datapoint itself in smoothing. Should be True in almost all cases
+
+    :return: scipy.sparse matrix with the smoothed signals
     """
     assert X.shape[0] == adata.shape[0], "cell number mismatch"
     logging.info("creating smoothing matrix")
