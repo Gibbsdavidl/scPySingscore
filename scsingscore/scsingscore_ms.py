@@ -56,6 +56,50 @@ def sc_score(
     return all_scores
 
 
+def sc_score_ms(
+        adata,
+        noise_trials,
+        samp_neighbors,
+        gene_set_up,
+        gene_set_down,
+        mode='average'
+        ):
+
+    """
+    gene set scoring with nearest neighbor smoothing of the expression matrix
+
+    Improves upon the usual scsing scoring by:
+    - smoothing the data matrix
+        - adding noise to the nearest neighbor smoothing via `samp_neighbors`
+    - adding noise to the expression data itself (via noise_trials)
+
+    :param adata: anndata.AnnData containing the cells to be scored
+    :param noise_trials: number of noisy samples to create, integer
+    :param samp_neighbors: number of neighbors to sample
+    :param gene_set_up: the gene set of interest for up expressed genes
+    :param gene_set_down: the gene set of interest for down expressed genes
+    :param mode: average or theoretical normalization of scores
+
+    :returns: np.array of scores, one per cell in adata
+    """
+
+    # NOTE: this is cells x genes
+    smoothed_matrix = nn_smoothing(adata.X, adata, 'connectivity', samp_neighbors)
+    # for easier handling with gene names
+    smoothed_adata = AnnData(smoothed_matrix, obs=adata.obs, var=adata.var)
+    """
+    since we're doing all cells at the same time now,
+    the following gets probelmatic (the df kills the sparsity)
+    Ideas:
+    - loop over cells, do the scoring
+    - batch the cells, i.e. create a df with 100 cells (puling them into mem) and score those in one go
+    """
+    all_scores = _score_all_at_once(gene_set_up=gene_set_up, gene_set_down=gene_set_down,
+                                    smoothed_adata=smoothed_adata, noise_trials=noise_trials, mode=mode)
+    return all_scores
+
+
+
 def _score_one_by_one(gene_set, smoothed_adata, noise_trials, mode='average', ):
     scores_across_cells = []
     for cell_ix in tqdm.trange(smoothed_adata.shape[0]):
@@ -82,7 +126,7 @@ def _score_one_by_one(gene_set, smoothed_adata, noise_trials, mode='average', ):
     return np.array(scores_across_cells).flatten()
 
 
-def _ms_sing(geneset: list, x: pd.Series, norm_method: str) -> dict:
+def _ms_sing(geneset: list, x: pd.Series, norm_method: str, rankup: bool) -> dict:
     """
     bare bones version of scsing scoring. Their function (see scsingscore.py)
     does a ton of stuff, here's the essentials
@@ -90,11 +134,12 @@ def _ms_sing(geneset: list, x: pd.Series, norm_method: str) -> dict:
     :param genest: Geneset to score against
     :param x: pd.Series with the gene expression of a single sample. One gene per row
     :param norm_method: how to normalize the scores
+    :param rankup: direction of ranking, up: True, down: False
     """
 
     sig_len_up = len(geneset)
     assert isinstance(x, pd.Series)
-    up_sort = x.rank(method='min', ascending=True)
+    up_sort = x.rank(method='min', ascending=rankup)  #
     su = []
 
     # for every gene in the list gene get the value at that
@@ -128,7 +173,7 @@ def _ms_sing(geneset: list, x: pd.Series, norm_method: str) -> dict:
     return dict(total_score=total_score, mad_up=mad_up)
 
 
-def _score_all_at_once(gene_set, smoothed_adata, noise_trials, mode='average', ):
+def _score_all_at_once(gene_set_up=False, gene_set_down=False, smoothed_adata=None, noise_trials=0, mode='average'):
     """
     not really, but at least call `si.score` only once
     """
@@ -148,7 +193,21 @@ def _score_all_at_once(gene_set, smoothed_adata, noise_trials, mode='average', )
         else:
             df_noise = df
 
-        s = _ms_sing(gene_set, df_noise['gene_counts'], norm_method='standard')
+        # Handle the cases of up vs down gene sets #
+        if gene_set_up and (not gene_set_down):
+            s = _ms_sing(gene_set_up, df_noise['gene_counts'], norm_method='standard', rankup=True)
+        elif (not gene_set_up) and gene_set_down:
+            s = _ms_sing(gene_set_down, df_noise['gene_counts'], norm_method='standard', rankup=False)
+            s['mad_down'] = s.pop('mad_up')
+        else: # both gene sets
+            s_up = _ms_sing(gene_set_up, df_noise['gene_counts'], norm_method='standard', rankup=True)
+            s_down = _ms_sing(gene_set_down, df_noise['gene_counts'], norm_method='standard', rankup=False)
+            s = dict(total_score=(s_up['total_score']+s_down['total_score']),
+                     mad_up=s_up['mad_up'],
+                     mad_down=s_down['mad_up'],
+                     up_score=s_up['total_score'],
+                     dn_score=s_down['total_score']
+                     )
         s['CB'] = smoothed_adata.obs.index[cell_ix]
         results.append(s)
     return results
