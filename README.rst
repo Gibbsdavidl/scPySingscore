@@ -1,35 +1,18 @@
-===========
-scsingscore
-===========
-**A Modified Python implementation of Foroutan et al (doi:10.1101/231217) simple sample scoring method for gene-set enrichment analysis**
+==================================
+single cell gene set scoring
+==================================
+**Python implementation of single cell scoring method for gene-set enrichment analysis**
 
-    A package of functions that can be used to implement singscore.
+    A package of functions that can be used to score each cell.
 
-    Future features will include interactivity in plots and plotting of a
-    landscape of scores.
 
-**Author:** David Gibbs, orig. auth. Kristy Horan
+**Authors:** David Gibbs, Michael Strasser
 
-**Brief Description:** This collection of methods will take a gene set or signature and a single sample (although multiple samples are also acceptable) and return a score reflective of the gene-set or signature enrichment for that single sample.
+**Brief Description:** This collection of methods will take a gene set or signature and a single cell and return a score reflective of the gene-set or signature enrichment for that cell, given the neighborhood.
 
-Now adding neighborhood sampling and noise injection to score single cells.
+Additional features include neighborhood sampling and noise injection to retain variability.
 
-* To do: *
 
-1.  neighbors might not be "good neighbors" ... perhaps filter by annotation.
-     this could be important if samples are mixed, and we want gene set scores to reflect selected sample phenotypes
+References:
 
-2.  would be faster to take a list of gene sets and do the transforms only once, then scoring each gene set
-     instead of doing the neighbor hood sampling and noise injection each time.
-
-3.  need to get back a pandas dataframe with annotations like cluster label for each cell.
-
-4.  parallel processing of cells would be nice... but memory is an issue.
-    need shared objects.
-    https://research.wmz.ninja/articles/2018/03/on-sharing-large-arrays-when-using-pythons-multiprocessing.html
-
-An example workflow can be seen on the `singscore wiki <https://github
-.com/kristyhoran/singscore/wiki>`_
-
-Or an example script with example input and output are also supplied in
-https://github.com/kristyhoran/singscore/tree/master/singscore/test
+1. Foroutan, M., Bhuva, D. D., Lyu, R., Horan, K., Cursons, J., & Davis, M. J. (2018). Single sample scoring of molecular phenotypes. BMC bioinformatics, 19(1), 1-10.
