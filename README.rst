@@ -1,10 +1,11 @@
-==================================
-single cell gene set scoring
-==================================
+
+# Please see https://github.com/Gibbsdavidl/gssnng for the current package.
+
+
+
 **Python implementation of single cell scoring method for gene-set enrichment analysis**
 
     A package of functions that can be used to score each cell.
-
 
 **Authors:** David Gibbs, Michael Strasser
 
